@@ -1,4 +1,4 @@
-package hotel_nlp.externals;
+package clojuima.java;
 
 import java.util.Map;
 import java.util.HashMap;
