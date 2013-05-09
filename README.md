@@ -423,6 +423,7 @@ The other 2 overloads are there to simply deal with a single sentence."
 
 (def postag-brown (partial hmm-postag "/home/path/to/model/binary/BrownModel.dat"))
 
+```
 
 This does look scary but trust me it's not! Everything that happens in there you've already seen...The truth is that there is quite a bit of ceremony in order to be able to deal with both cases of *wanting the WhiteSpaceTokenizer* or not. The important bits are the following:
 
