@@ -510,5 +510,5 @@ Dimitrios Piliouras ->[jimpil](https://github.com/jimpil)
 
 Copyright © 2013 Dimitrios Piliouras
 
-Distributed under the [BSD]() license.
+Distributed under the [BSD](https://github.com/jimpil/clojuima/blob/master/license/licence.txt) license.
 
