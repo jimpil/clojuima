@@ -32,7 +32,7 @@ We are going to deal with the difficult case first, that is turning Clojure func
 
 The first construct that comes to mind when someone looks at how UIMA components have been implemented, is Clojure's **proxy**. If for any reason you don't know or remember what *proxy* does, stop here and refresh your memory by looking at the [documentation](http://clojuredocs.org/clojure_core/clojure.core/proxy). If you do know, what *proxy* does, you'll probably be very upset to find out that it will not work in our case! The reason being that, proxy only cares about arity and not types. In other words, we cannot override only one of the .process() methods (the one accepting JCas). There is no way to specify that in Clojure, unless you go down the **gen-class** road which steals away all the dynamicity from you...Basically, if we want to keep the dynamic nature of *proxy*, we have to implement it ourselves! Don't fear though...it's not that hard (well, once you understand where all the right knobs are!)
 
-You can see the entire file [here](http://pastebin.com/ySkq61uZ). There is quite a bit of explaining though before we do anything else. Take 2 minutes to skim through the Java class to get a feel of what is happening. Don't worry if you don't understand something - all will become clear soon... :)
+You can see the entire file [here](https://github.com/jimpil/clojuima/blob/master/src/clojuima/java/UIMAProxy.java). There is quite a bit of explaining though before we do anything else. Take 2 minutes to skim through the Java class to get a feel of what is happening. Don't worry if you don't understand something - all will become clear soon... :)
 
 Ok, let's see...As you probably already gathered, UIMAProxy.java is a generic UIMA component that doesn't do much. Instead, it delegates the usual tasks to independent functions. By *usual-tasks*, we mean the absolute minimum number of tasks every single UIMA component does: 
   
@@ -44,7 +44,7 @@ These are 3 distinct operations and we need to abstract them if we want to conve
 
 1.initialize() is not very interesting but we need to clarify certain things. Clojure keeps class files in memory, where UIMA's classloader, or in fact Java's default one, can't look. In our case, we're going through uimaFIT, which uses Spring to implicitely convert Class objects to Class-name strings and vice-versa, which in turn will use the thread context classloader (Thread.currentThread().getContextClassLoader()), if it can't find a particular class by name when using the default classloader. Whether this is by design or by accident, little do we care...As long as we're going through Spring we're safe, otherwise, if we wanted to use Class.forName().newInstance(), we'd have to use the 3-arg overload of Class.forName(), passing Clojure's dynamic Classloader as the last argument.    
 2. You'll notice that I'm inheriting from uimaFIT's base implementation (org.uimafit.component.JCasAnnotator_ImplBase) and not from UIMA's. Again, this is important.  
-3. The rest interesting stuff all happens in the doActualWork() method. It accepts classes of functions that  have been passed in via annotations and creates new instances of them. The usual case would be to pass in 3 distinct functions for the 3 distinct jobs, but other people have suggested that it would be nice to be able to pass in a single function that does everything (after all it is a CAS->CAS tranformation; or should I say 'mutation'?). Well, with this class you can pass nils for the ext-fn and post-fn but you have to make absolutely sure that the annotator-fn can handle everything (reading from and writing to the CAS).  
+3. The rest interesting stuff all happens in the doActualWork() method. It accepts classes of functions that have been passed in via annotations and creates new instances of them. The usual case would be to pass in 3 distinct functions for the 3 distinct jobs, but other people have suggested that it would be nice to be able to pass in a single function that does everything (after all it is a CAS->CAS tranformation; or should I say 'mutation'?). Well, with this class you can pass nils for the ext-fn and post-fn but you have to make absolutely sure that the annotator-fn can handle everything (reading from and writing to the CAS).  
 
 
 ###and that is it! 
@@ -88,41 +88,41 @@ Finally, download UIMAProxy.java from [here](http://pastebin.com/ySkq61uZ), repl
 In order to keep the code clean and idiomatic, we will define a bunch of helper functions that wrap some basic UIMA functionality. We could skip this bit but I find the code becomes too obscured when doing so much interop. Copy and paste the following helpers in your core.clj.   
 ``` clojure
 
-    (def dynamic-classloader (. (Thread/currentThread) getContextClassLoader))
+(def dynamic-classloader (. (Thread/currentThread) getContextClassLoader))
 
-    (definline xml-parser "Get the current XML parser." []
+(definline xml-parser "Get the current XML parser." []
      `(UIMAFramework/getXMLParser))
 
-    (definline logger "Get the current logger." []
+(definline logger "Get the current logger." []
      `(UIMAFramework/getLogger)) 
 
-    (defn ^ResourceSpecifier  xml-resource 
-     "Parses an xml-descriptor file and returns the ResourceSpecifier object."
-      [xml-descriptor-loc]
-      (let [source (XMLInputSource. xml-descriptor-loc)]
-        (.parseResourceSpecifier (xml-parser) source)))
+(defn ^ResourceSpecifier  xml-resource 
+ "Parses an xml-descriptor file and returns the ResourceSpecifier object."
+ [xml-descriptor-loc]
+   (let [source (XMLInputSource. xml-descriptor-loc)]
+    (.parseResourceSpecifier (xml-parser) source)))
 
-    (defn ^JCas jcas   
-     "Create a JCas, given an Analysis Engine (ae)." 
-     [^AnalysisEngine ae] 
-      (.newJCas ae))
+(defn ^JCas jcas   
+ "Create a JCas, given an Analysis Engine (ae)." 
+ [^AnalysisEngine ae] 
+   (.newJCas ae))
     
-    (defn produce-primitive
-     "Produce UIMA components from your objects without writing any XML descriptors, via uima-fit."
-     [& os]
-     (map #(AnalysisEngineFactory/createPrimitive (class %)  
-      (TypeSystemDescriptionFactory/createTypeSystemDescription) (to-array [])) os))
+(defn produce-primitive
+ "Produce UIMA components from your objects without writing any XML descriptors, via uima-fit."
+ [& os]
+ (map #(AnalysisEngineFactory/createPrimitive (class %)  
+  (TypeSystemDescriptionFactory/createTypeSystemDescription) (to-array [])) os))
   
-    (defn produce 
-     "Produce UIMA components according to some ResourceSpecifier objects."
-     [what specifier config-map 
-       & {:keys [resource-manager] 
-          :or {resource-manager (doto (UIMAFramework/newDefaultResourceManager) 
-                                  (.setExtensionClassPath dynamic-classloader "" true))}}]
-     (let [min-params {"TIMEOUT_PERIOD" 0 
-                       "RESOURCE_MANAGER" resource-manager}
+(defn produce 
+"Produce UIMA components according to some ResourceSpecifier objects."
+ [what specifier config-map 
+   & {:keys [resource-manager] 
+      :or {resource-manager (doto (UIMAFramework/newDefaultResourceManager) 
+                             (.setExtensionClassPath dynamic-classloader "" true))}}]
+(let [min-params {"TIMEOUT_PERIOD" 0 
+                     "RESOURCE_MANAGER" resource-manager}
       additional-params (merge min-params config-map)] 
-     (case what
+ (case what
      :analysis-engine  (UIMAFramework/produceAnalysisEngine specifier additional-params)                           
      :cas-consumer     (UIMAFramework/produceCasConsumer specifier additional-params)
      :cas-initializer  (UIMAFramework/produceCasInitializer specifier additional-params)
@@ -130,41 +130,41 @@ In order to keep the code clean and idiomatic, we will define a bunch of helper 
      :collection-reader (UIMAFramework/produceCollectionReader specifier additional-params)
      :primitive-ae (produce-primitive specifier))))
 
-     (defn inject-annotation! [^JCas jc [^Class type  begin end]]
-      (let [cas (.getCas jc)
-            type-system (.getTypeSystem jc) 
-            type (CasUtil/getAnnotationType cas type)]   
-      (.addFsToIndexes cas 
-        (.createAnnotation cas type begin end))))
+(defn inject-annotation! [^JCas jc [^Class type  begin end]]
+   (let [cas (.getCas jc)
+         type-system (.getTypeSystem jc) 
+         type (CasUtil/getAnnotationType cas type)]   
+   (.addFsToIndexes cas 
+     (.createAnnotation cas type begin end))))
 
-     (defn select-annotations [^JCas jc ^Class klass start end]
-       (JCasUtil/selectCovered jc klass start end))
+(defn select-annotations [^JCas jc ^Class klass start end]
+   (JCasUtil/selectCovered jc klass start end))
 
-     (defn calculate-indices [original matches]
-       (let [^java.util.regex.Matcher matcher #(re-matcher (re-pattern %) original)]
-         (with-local-vars [cpos 0]
-          (reduce 
-             #(assoc %1 %2 
-                (let [ma1 (doto (matcher %2) (.find @cpos))
-                  endpos (.end ma1)]
-                (var-set cpos endpos) 
-               [(.start ma1) endpos])) 
-            {} matches))))
+(defn calculate-indices [original matches]
+  (let [^java.util.regex.Matcher matcher #(re-matcher (re-pattern %) original)]
+    (with-local-vars [cpos 0]
+      (reduce 
+         #(assoc %1 %2 
+           (let [ma1 (doto (matcher %2) (.find @cpos))
+                 endpos (.end ma1)]
+            (var-set cpos endpos) 
+           [(.start ma1) endpos])) 
+      {} matches))))
 
 
-      (defn uima-compatible 
-      "Given a component and a function to extract the desired input from the JCas, 
-       returns a UIMA compatible oblect that wraps the original component. 
-       For now the component must be able to act as a function.
-       The fn  'jcas-input-extractor' must accept 2 arguments [JCas, UIMAContext]." 
-       ([component jcas-input-extractor jcas-writer config-map]
-         (produce :analysis-engine  
-          (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy
-            (into-array String  [UIMAProxy/PARAM_ANNFN  (class component)  
-                                 UIMAProxy/PARAM_EXTFN  (class jcas-input-extractor)
-                                 UIMAProxy/PARAM_POSTFN (class jcas-writer)])) config-map))
-     ([component jcas-input-extractor jcas-writer ] 
-      (uima-compatible  component jcas-input-extractor jcas-writer {})) )
+(defn uima-compatible 
+"Given a component and a function to extract the desired input from the JCas, 
+returns a UIMA compatible oblect that wraps the original component. 
+For now the component must be able to act as a function.
+The fn  'jcas-input-extractor' must accept 2 arguments [JCas, UIMAContext]." 
+([component jcas-input-extractor jcas-writer config-map]
+ (produce :analysis-engine  
+   (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy
+     (into-array String  [UIMAProxy/PARAM_ANNFN  (class component)  
+                          UIMAProxy/PARAM_EXTFN  (class jcas-input-extractor)
+                          UIMAProxy/PARAM_POSTFN (class jcas-writer)])) config-map))
+([component jcas-input-extractor jcas-writer ] 
+ (uima-compatible  component jcas-input-extractor jcas-writer {})) )
 ```      
 
 We are almost there! Let's see if everything compiles...navigate back to the root of the project and type in your terminal:
@@ -212,17 +212,17 @@ We've reached a crucial point...This is all the code we need in order to achieve
 
 ``` clojure 
   
-    (in-ns 'clojuima.core)  ;; navigate to the namespace you just loaded
+(in-ns 'clojuima.core)  ;; navigate to the namespace you just loaded
 
-    (def sample "All plants need light and water to grow!")  ;;define a sample sentence
-    (def token-regex "Regular expression capable of identifying word boundaries." 
-      #"[\p{L}\d/]+|[\-\,\.\?\!\(\)]")
+(def sample "All plants need light and water to grow!")  ;;define a sample sentence
+(def token-regex "Regular expression capable of identifying word boundaries." 
+  #"[\p{L}\d/]+|[\-\,\.\?\!\(\)]")
 
-    (defn my-tok "A tokenizing fucntion" 
-      [^String s] 
-      (re-seq token-regex s))
+(defn my-tok "A tokenizing function." 
+[^String s] 
+(re-seq token-regex s))
 
-    (my-tok sample)
+(my-tok sample)
         
 ```
 You should be seeing this exact output:
@@ -231,16 +231,18 @@ You should be seeing this exact output:
 
 So our tokenizer/annotator works. Now we need to make it UIMA-friendly...It should be very simple after all this preparatory work...before we call *uima-compatible* we need another 2 functions. The input-extractor and the jcas-writer. For our simple example the following will do:
 
-    (defn extractor [^JCas c _] ;;2nd arg is the UIMAContext which we don't need for our purpose
-      (.getDocumentText c)) 
+``` clojure
 
-    (defn post-fn 
-    "Given a JCas, some annotation result and the original input, calculate the appropriate indices and inject them into the CAS. " 
-     [jc res original-input]  
-      (inject-annotation! jc [Annotation 0 (count original-input)]) ;;the entire sentence annotation    
-       (doseq [[_ [b e]] (calculate-indices original-input res)]
-         (inject-annotation! jc [Annotation b e])) );; the token annotations
+(defn extractor [^JCas c _] ;;2nd arg is the UIMAContext which we don't need for our purpose
+  (.getDocumentText c)) 
 
+(defn post-fn 
+"Given a JCas, some annotation result and the original input, calculate the appropriate indices and inject them into the CAS. " 
+[jc res original-input]  
+(inject-annotation! jc [Annotation 0 (count original-input)]) ;;the entire sentence annotation    
+ (doseq [[_ [b e]] (calculate-indices original-input res)]
+   (inject-annotation! jc [Annotation b e])) );; the token annotations    
+```
     
 FINALLY:
 
@@ -253,9 +255,12 @@ FINALLY:
 
 We got our UIMA component! Let's see what it can do...type in the following:
 
+``` clojure
     (def jc (JCasFactory/createJCas))
     (.setDocumentText jc  sample)
     (.process my-ae jc)
+    
+```
       
 If everything went ok, you should be seeing output similar to this:
 
@@ -319,24 +324,25 @@ If everything went ok, you should be seeing output similar to this:
 
 Right, let's take a step backwards and see what we have achieved...In essence, what we've done is to completely separate the code that does the work (the annotator-fn) from the UIMA mechanics. We can now take any function that knows nothing about UIMA and, as long as we provide the pre/post fucntions, we can turn it into UIMA compatible. Anonymous functions will work as well...However, if you had a *derecord* that implements IFn and thus can act as a function, you would still need to wrap it in one more function. For example, imagine that our tokenizer was not a function but it did implement IFn which means it can act as a function. Something like this perhaps:
 
-```clojure
+``` clojure
 
-    (defrecord RE-Tokenizer [regex]
-     ITokenizer
-    (tokenize [_ sentence] (re-seq regex sentence)) ;;does this implementation ring any bells? 
-    IComponent 
-    (run [this sentence] 
-     (if (string? sentence) (tokenize this sentence) 
-      (map #(tokenize this %) sentence)))
-    clojure.lang.IFn  ;;can act as an fn
-     (invoke  [this arg] (tokenize this arg))
-     (applyTo [this args] (apply tokenize this args))  )
+(defrecord RE-Tokenizer [regex]
+ ITokenizer
+ (tokenize [_ sentence] (re-seq regex sentence)) ;;does this implementation ring any bells? 
+IComponent 
+ (run [this sentence] 
+   (if (string? sentence) (tokenize this sentence) 
+       (map #(tokenize this %) sentence)))
+ clojure.lang.IFn  ;;can act as an fn
+  (invoke  [this arg] (tokenize this arg))
+  (applyTo [this args] (apply tokenize this args))  )
      
 ```
 
 In this case, the object does not have a nullary constructor, thus cannot be instantiated via
 
-``` java
+``` java 
+
      Class.forName("clojuima.core/RE-Tokenizer").newInstance();   
 ```     
 
@@ -378,31 +384,31 @@ Now, recall for earlier that UIMA components do 3 distinct tasks in the .process
 Observe the following function for 2 minutes: 
 ``` clojure
 
-    (defn hmm-postag
-     "A HMM POS-tagger capable of working not only with bigrams(n=2) but also trigrams(n=3).
-      The 3rd overload is the important one. It expects the path to the model you want to use and a map from sentences (String) to tokens (seq of Strings).
-      If you don't have the tokens for the sentences simply pass nil or an empty seq and UIMA's basic WhiteSpaceTokenizer will be used to create the tokens.
-      Theoretically you can mix non-empty token-seqs with  empty ones in the same map - however if that is the case, the tokens that were supplied will be ignored
-      only to be re-tokenized by the WhiteSpaceTokenizer. Therefore, it is not suggested that you do that. In fact, it not suggested to use the WhiteSpaceTokenizer 
-      for any serious work at all. In addition, you can also pass an extra key :n with value 2 or 3, to specify whether you want bigram or trigram modelling.  
-      The other 2 overloads are there to simply deal with a single sentence."
-      ([path-to-model whole-sentence tokens n]  
+(defn hmm-postag
+"A HMM POS-tagger capable of working not only with bigrams(n=2) but also trigrams(n=3).
+The 3rd overload is the important one. It expects the path to the model you want to use and a map from sentences (String) to tokens (seq of Strings).
+If you don't have the tokens for the sentences simply pass nil or an empty seq and UIMA's basic WhiteSpaceTokenizer will be used to create the tokens.
+Theoretically you can mix non-empty token-seqs with  empty ones in the same map - however if that is the case, the tokens that were supplied will be ignored
+only to be re-tokenized by the WhiteSpaceTokenizer. Therefore, it is not suggested that you do that. In fact, it not suggested to use the WhiteSpaceTokenizer 
+for any serious work at all. In addition, you can also pass an extra key :n with value 2 or 3, to specify whether you want bigram or trigram modelling.  
+The other 2 overloads are there to simply deal with a single sentence."
+([path-to-model whole-sentence tokens n]  
          (hmm-postag path-to-model {whole-sentence tokens :n n}))  
-      ([path-to-model whole-sentence tokens] 
+([path-to-model whole-sentence tokens] 
          (hmm-postag path-to-model whole-sentence tokens 3)) 
-      ([path-to-model sentence-token-map]
-        (let [config {"NGRAM_SIZE" (int (or (:n sentence-token-map) 3))
-                      "ModelFile"  path-to-model}
-        proper-map  (dissoc sentence-token-map :n)
-        need-aggregate? (not (every? seq (vals proper-map)))        
-        tagger (if need-aggregate?
-                 (produce :analysis-engine (-> "HmmTaggerAggregate.xml" clojure.java.io/resource xml-resource) config)
-                 (produce :analysis-engine (-> "HmmTagger.xml" clojure.java.io/resource xml-resource) config))       
-        jc (jcas tagger)
-        pos-tag (fn [^String s ^JCas jc]
-                    (.setDocumentText jc s)
-                    (.process tagger jc) 
-                      (mapv #(.getPosTag ^TokenAnnotation %) (select-annotations jc TokenAnnotation 0 (count s))))]
+([path-to-model sentence-token-map]
+ (let [config {"NGRAM_SIZE" (int (or (:n sentence-token-map) 3))
+               "ModelFile"  path-to-model}
+       proper-map  (dissoc sentence-token-map :n)
+       need-aggregate? (not (every? seq (vals proper-map)))        
+       tagger (if need-aggregate?
+                (produce :analysis-engine (-> "HmmTaggerAggregate.xml" clojure.java.io/resource xml-resource) config)
+                (produce :analysis-engine (-> "HmmTagger.xml" clojure.java.io/resource xml-resource) config))       
+       jc (jcas tagger)
+       pos-tag (fn [^String s ^JCas jc]
+                 (.setDocumentText jc s)
+                 (.process tagger jc) 
+                 (mapv #(.getPosTag ^TokenAnnotation %) (select-annotations jc TokenAnnotation 0 (count s))))]
       (if need-aggregate? 
        (reduce-kv 
         (fn [init sentence tokens]
@@ -415,7 +421,7 @@ Observe the following function for 2 minutes:
                         (pos-tag sentence jc))))
          [] proper-map)))) )
 
-     (def postag-brown (partial hmm-postag "/home/path/model/binary/BrownModel.dat"))
+(def postag-brown (partial hmm-postag "/home/path/to/model/binary/BrownModel.dat"))
 
 
 This does look scary but trust me it's not! Everything that happens in there you've already seen...The truth is that there is quite a bit of ceremony in order to be able to deal with both cases of *wanting the WhiteSpaceTokenizer* or not. The important bits are the following:
@@ -433,14 +439,17 @@ then we create a JCas from the analysis-engine we just produced:
 
 then we define a function that will do the actual tagging
 
-    (fn [^String s ^JCas jc]
-       (.setDocumentText jc s)
-       (.process tagger jc)  ;;notice that we use the tagger internally
-       (mapv #(.getPosTag ^TokenAnnotation %) 
-         (select-annotations jc TokenAnnotation 0 (count s))))
+``` clojure
+(fn [^String s ^JCas jc]
+   (.setDocumentText jc s)
+   (.process tagger jc)  ;;notice that we use the tagger internally
+   (mapv #(.getPosTag ^TokenAnnotation %) 
+    (select-annotations jc TokenAnnotation 0 (count s))))
+```
 
 All that is left is to loop through the sentences...Notice how similar the 2 *reduce* statements are... The first one needs not to worry about injecting annotation indices because the WhitSpaceTokenizer takes care of that. The second however needs to reconstruct the indices from the tokens and the original sentence. This is where *calculate-indices* shines...
 
+``` clojure
     (reduce-kv 
       (fn [init sentence tokens] 
         (conj init (do (inject-annotation! jc [SentenceAnnotation 0 (count sentence)])
@@ -448,6 +457,8 @@ All that is left is to loop through the sentences...Notice how similar the 2 *re
                       (inject-annotation! jc [TokenAnnotation b e])) 
                   (pos-tag sentence jc))))
       [] proper-map)
+      
+```
 
 ...and that is it! Extract one of the two models (located in the jar) somewhere on your file-system and we're ready to test our function.
 
