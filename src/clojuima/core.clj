@@ -87,9 +87,9 @@
   ([component jcas-input-extractor jcas-writer config-map]
    (produce :analysis-engine  
     (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy 
-       (into-array Object  [UIMAProxy/PARAM_ANNFN  (class component)  
-                            UIMAProxy/PARAM_EXTFN  (class jcas-input-extractor)
-                            UIMAProxy/PARAM_POSTFN (class jcas-writer)])) config-map))
+       (to-array  [UIMAProxy/PARAM_ANNFN  (class component)  
+                   UIMAProxy/PARAM_EXTFN  (class jcas-input-extractor)
+                   UIMAProxy/PARAM_POSTFN (class jcas-writer)])) config-map))
   ([component jcas-input-extractor jcas-writer] 
     (uima-compatible component jcas-input-extractor jcas-writer {})) )
     
