@@ -205,7 +205,7 @@ Ok, let's observe these 10 functions for a minute. Presumably the first 5 functi
 
 * *calculate-indices* is interesting because in a tokenizing context it will allow us to reconstruct the indices given the original string and the individual tokens. This is important because if you've got for example a tokenizer, which has been implemented functionally instead of imperatively, it's very unlikely that you'll be able to get the indices out of it. You would typically supply a string and you'd get back a list of tokens. No state - no index... In order to make that tokenizer UIMA compatible, we need the indices no matter what. This is what this function does. It uses a Matcher object and loops through the tokens resetting the offset at the .end() of the last match. For this purposes of this demo we'll be using this function a lot. However, in a task other than tokenization or NER, you'd have to roll your own function to do the correct job. 
 
-* *uima-compatible* is really the function that ties together all our previous efforts. It is where we were trying to get all this time, and as mentioned earlier, cannot be implemented with *proxy*. We are going to use UIMAProxy instead. IMO, the code in this function is pretty evident. It takes the 3 functions that are supposed to do the actual work. It uses uimaFIT's AnalysisEngineFactory to create a primitive-descriptor passing it our UIMAProxy (the Class object) and an array of Object parameters. These, as you might have guessed, are used in pairs inside uimaFIT. So since you see 6 Strings, you know you're setting 3 configuration parameters. 
+* *uima-compatible* is really the function that ties together all our previous efforts. It is where we were trying to get all this time, and as mentioned earlier, cannot be implemented with *proxy*. We are going to use UIMAProxy instead. IMO, the code in this function is pretty evident. It takes the 3 functions that are supposed to do the actual work. It uses uimaFIT's AnalysisEngineFactory to create a primitive-descriptor passing it our UIMAProxy (the Class object) and an array of Object parameters. These, as you might have guessed, are used in pairs inside uimaFIT. So since you see 6 elements in the array, you know you're setting 3 configuration parameters. 
 
 
 We've reached a crucial point...This is all the code we need in order to achieve our first objective. Let's try it out...go back to your REPL or start a new one and load the file as we did before. Now type:
@@ -229,7 +229,7 @@ You should be seeing this exact output:
 
     ("All" "plants" "need" "light" "and" "water" "to" "grow" "!")
 
-So our tokenizer/annotator works. Now we need to make it UIMA-friendly...It should be very simple after all this preparatory work...before we call *uima-compatible* we need another 2 functions. The input-extractor and the jcas-writer. For our simple example the following will do:
+So our tokenizer works. Now we need to convert it to a UIMA annotator...It should be very simple after all this preparatory work...before we call *uima-compatible* we need another 2 functions. The input-extractor and the jcas-writer. For our simple example the following will do:
 
 ``` clojure
 
@@ -249,7 +249,7 @@ FINALLY:
      clojuima.core=>  (uima-compatible my-tok extractor post-fn)
      #<PrimitiveAnalysisEngine_impl org.apache.uima.analysis_engine.impl.PrimitiveAnalysisEngine_impl@6c96fb0f>
    
-     (def my-ae *1) ;;def-it here so you don't lose it. I 'd have def-ed it directly but I wanted you to see the actual object that was returned rather than the var.
+     (def my-ae *1) ;;def-it here so you don't lose it. I 'd have def-ed it directly but I wanted you to see the actual object that was returned, rather than the var.
 
 :) :) :) :) :) :) :) :) :) :)
 
@@ -397,10 +397,10 @@ The other 2 overloads are there to simply deal with a single sentence."
 ([path-to-model whole-sentence tokens] 
          (hmm-postag path-to-model whole-sentence tokens 3)) 
 ([path-to-model sentence-token-map]
- (let [config {"NGRAM_SIZE" (int (or (:n sentence-token-map) 3))
+ (let [config {"NGRAM_SIZE" (int (or (:n sentence-token-map) 3))   ;;the configuration map has at least 2 entries
                "ModelFile"  path-to-model}
-       proper-map  (dissoc sentence-token-map :n)
-       need-aggregate? (not (every? seq (vals proper-map)))        
+       proper-map  (dissoc sentence-token-map :n)            ;;sentence-token-map probably has a [:n x] entry which is obviously not a sentence
+       need-aggregate? (not (every? seq (vals proper-map)))  ;;check if all values in the map are seqs (contain tokens)       
        tagger (if need-aggregate?
                 (produce :analysis-engine (-> "HmmTaggerAggregate.xml" clojure.java.io/resource xml-resource) config)
                 (produce :analysis-engine (-> "HmmTagger.xml" clojure.java.io/resource xml-resource) config))       
@@ -461,7 +461,7 @@ All that is left is to loop through the sentences...Notice how similar the 2 *re
       
 ```
 
-...and that is it! Extract one of the two models (located in the jar) somewhere on your file-system and we're ready to test our function.
+...and that is it! Extract one of the two models (located in the HMMTagger.jar) somewhere on your file-system and we're ready to test our function.
 
 
      clojuima.core=> (postag-brown sample (re-seq token-regex sample) 3) 
@@ -487,7 +487,7 @@ and this is how it's done! :) You could of course create a couple of protocols I
       "His name is Nick."  []  ;;empty seq or nil
      } 
 
-even though you provided the tokens for the first 2 entries, they will be ignored completely because the last one is empty and thus the WhiteSpaceTokenizer is needed. Therefore, it is not suggested to do that, unless of course you don't mind or you manage to adjust it to your needs ;)
+even though you provided the tokens for the first 2 entries, they will be ignored completely because the last one is empty and thus the WhiteSpaceTokenizer is needed. Therefore, it is not suggested to do that, unless of course you don't mind or you manage to adjust the function to your needs ;)
 
      
 Well, that was a lot easier, wasn't it? We've finished...Both of our initial goals have been implemented! We can take Clojure functions and turn them into UIMA components without modification and vice versa... :)
