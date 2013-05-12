@@ -6,7 +6,6 @@
   	   [org.apache.uima.util XMLInputSource CasPool]
   	   [org.apache.uima.analysis_engine AnalysisEngine]
            [org.uimafit.component JCasAnnotator_ImplBase]
-           [org.uimafit.pipeline SimplePipeline]
            [org.uimafit.util JCasUtil CasUtil]
            [org.uimafit.component.initialize ConfigurationParameterInitializer]
            [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
