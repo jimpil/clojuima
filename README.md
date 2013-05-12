@@ -76,14 +76,13 @@ Now, with our dependencies sorted let's prepare our namespace. Navigate into src
            [org.apache.uima.util XMLInputSource CasPool]
            [org.apache.uima.analysis_engine AnalysisEngine]
            [org.uimafit.component JCasAnnotator_ImplBase]
-           [org.uimafit.pipeline SimplePipeline]
            [org.uimafit.util JCasUtil CasUtil]
            [org.uimafit.component.initialize ConfigurationParameterInitializer]
            [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
            [clojuima.java UIMAProxy]))
 
 
-Finally, download UIMAProxy.java from [here](http://pastebin.com/ySkq61uZ), replace the package declaration at the very top with "package clojuima.java;" and save it in .../.../clojuima/src/java. If the directory doesn't exist create it. Everything should be at the right place and ready for compilation at this point. 
+Finally, download UIMAProxy.java from [here](https://github.com/jimpil/clojuima/blob/master/src/clojuima/java/UIMAProxy.java) and save it in .../.../clojuima/src/java. If the directory doesn't exist create it. Everything should be at the right place and ready for compilation at this point. Alternatively clone the entire repo and you're good to go... 
 
 In order to keep the code clean and idiomatic, we will define a bunch of helper functions that wrap some basic UIMA functionality. We could skip this bit but I find the code becomes too obscured when doing so much interop. Copy and paste the following helpers in your core.clj.   
 ``` clojure
